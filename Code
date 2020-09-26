@@ -1,0 +1,172 @@
+library(readr)
+library(cluster)
+library(factoextra)
+## upload file
+songs_features = read_csv("songs_features.csv")
+DF = subset(songs_features, select=-c(id,uri,analysis_url, X1, type, track_href))
+
+boxplot(DF)
+table(songs_features$mode)
+plot(songs_features$speechiness)
+
+library(ggplot2)
+library(reshape2)
+meltData = melt(DF, id= 5:5)
+p = ggplot(meltData, aes(factor(variable), value))
+p + geom_boxplot() + facet_wrap(~variable, scale="free")
+
+DF_subset = subset(DF, select=c('tempo', 'duration_ms', 'loudness')) #subs a normalizar
+DF_subset_nuevo = subset(DF, select=c('tempo', 'duration_ms', 'loudness')) #DF con lo normalizado abajo
+normalized = function(x){(x-min(x))/(max(x)-min(x))} 
+
+for (i in 1:3) {
+  DF_subset_nuevo[i] = normalized(DF_subset[i])  
+  
+}
+boxplot(DF_subset_nuevo)
+
+DF_trabajado = subset(DF, select= -c(tempo, duration_ms, loudness))
+Final_DF = cbind( DF_trabajado, DF_subset_nuevo)
+
+meltData2 = melt(Final_DF, id= 5:5)
+p2 = ggplot(meltData2, aes(factor(variable), value)) 
+p2 + geom_boxplot() + facet_wrap(~variable, scale="free")
+
+boxplot(Final_DF)
+#songs_metadata = read_csv("songs_metadata.csv")
+
+# Pregunta q responder: QUE TIPO DE CANCIONES ESTA ESCUCHANDO?
+# Pregunta q responder: SI SELECCIONO ALGUNAS VARIABLES, ENCUENTRO ALGUN PATRON?
+
+##########################
+
+#################### USANDO K MEDOIDS ################################
+Dataset = Final_DF
+
+fviz_nbclust(x = Dataset, FUNcluster = pam, method = "wss", k.max = 15,
+             diss = dist(Dataset, method = "euclidean")) # manhattan
+
+pam.res = pam(Dataset, k = 3, metric = "euclidean")
+pam.res
+
+fviz_nbclust(x = Dataset, FUNcluster = pam, method = "silhouette", k.max = 15) +
+  labs(title = "Número óptimo de clusters")
+
+set.seed(896)
+fviz_nbclust(x = Dataset, FUNcluster = kmeans, method = "gap_stat", nboot = 500,
+             k.max = 15, verbose = FALSE) +
+  labs(title = "Número óptimo de clusters")
+
+
+fviz_cluster(pam.res, data = Dataset, 
+             repel = TRUE,
+             #show.clust.cent = TRUE,
+             geom = 'point', 
+             palette = 'jco',
+             alpha = 0.2,
+             shape = 19,
+             ggtheme = theme_minimal(),
+             main = 'Clusters con K Medoids') # esta no presentarla
+
+clusplot(pam.res, main = NULL)
+
+pam_clusters = eclust(x = Dataset, FUNcluster = "pam", k = 3, seed = 123,
+                      hc_metric = "euclidean", graph = FALSE)
+fviz_silhouette(sil.obj = pam_clusters, print.summary = TRUE, palette = "jco",
+                ggtheme = theme_classic()) 
+
+
+library(NbClust)
+numero_clusters = NbClust(data = Dataset, distance = "euclidean", min.nc = 2,
+                          max.nc = 10, method = "kmeans", index = "alllong")
+fviz_nbclust(numero_clusters)
+
+clustering = as.data.frame(pam.res$clustering)
+Consolidado = cbind(Dataset, clustering)
+Y = aggregate(. ~ pam.res$clustering, Dataset, mean)
+Y2 = cbind(Row.Names = row.names(Y), Y)
+Y2['pam.res$clustering'] = NULL
+Y2['pam.res$clustering'] = NULL
+
+D = melt(Y2, id='Row.Names')
+p5 = ggplot(D, aes(x=factor(Row.Names), y=value, group=factor(Row.Names), colour=factor(Row.Names)))
+p5 + geom_point(show.legend = F) + facet_wrap(~variable, scale="free")
+
+
+# df_kmeans_silhouette = silhouette(pam.res$clustering, dist(Dataset))
+# plot(df_kmeans_silhouette)
+
+
+########## DBSCAN Model #########################################
+library(fpc)
+library(dbscan)
+
+### prueba  base de datos original########################
+K = 5
+BaseDatos = DF
+Model_DBS = dbscan(BaseDatos, eps = 20000, minPts = K)
+Model_DBS
+fviz_cluster(Model_DBS, data = BaseDatos, stand = FALSE,
+             ellipse = FALSE, show.clust.cent = FALSE,
+             geom = "point",palette = "jco", ggtheme = theme_classic())
+#kNNdist(BaseDatos, K) # calcula las distancias al 4to vecino mas cercano sin ordenar
+kNNdistplot(BaseDatos, 5)
+abline(h = 20000, lty = 2)
+
+### prueba nueva base de datos ############################
+K2 = 5
+BaseDatos2 = Final_DF
+Model_DBS2 = dbscan(BaseDatos2, eps = 1.6, minPts = K2)
+Model_DBS2
+fviz_cluster(Model_DBS2, data = BaseDatos2, stand = FALSE,
+             ellipse = FALSE, show.clust.cent = FALSE,
+             geom = "point",palette = "jco", ggtheme = theme_classic())
+#kNNdist(BaseDatos, K) # calcula las distancias al 4to vecino mas cercano sin ordenar
+kNNdistplot(BaseDatos2, 5)
+abline(h = 1.6, lty = 2)
+
+###### prueba sin datos categoricos ##############
+DF_sin_categoricas = Final_DF
+DF_sin_categoricas[c('mode','time_signature','key')] = NULL #las anulo xq son categoricas?  
+
+meltData3 = melt(DF_sin_categoricas, id= 5:5)
+p3 = ggplot(meltData3, aes(factor(variable), value)) 
+p3 + geom_boxplot() + facet_wrap(~variable, scale="free")
+
+
+K3 = 3
+BaseDatos3 = DF_sin_categoricas
+Model_DBS3 = dbscan(BaseDatos3, eps = 0.6, minPts = K3)
+Model_DBS3
+fviz_cluster(object = Model_DBS3, data = BaseDatos3, stand = FALSE,
+             ellipse = FALSE, show.clust.cent = FALSE,
+             geom = "point",palette = "jco", ggtheme = theme_classic())
+kNNdistplot(BaseDatos3, 5)
+abline(h = 0.6, lty = 2)
+
+########## GMM Model #########################################
+
+library(mclust)
+mixmodel = densityMclust(Final_DF)#Estimamos las densidades
+summary(mixmodel, parameters=TRUE)  
+#plot(mixmodel, what="density", data=Final_DF, breaks=20)##Observemos lo que sucede si tomamos 20 breaks para el histograma 
+par(mfrow = c(1, 1)) 
+plot(mixmodel, what = "diagnostic", type = "cdf")# Gráfico de diagnóstico: comparación contra la empírica
+library(factoextra)
+fviz_mclust(mixmodel, 'BIC', palette = 'jco')
+fviz_mclust(mixmodel, 'uncertainty', palette='jco')
+fviz_mclust(mixmodel, 'classification', 
+            palette='jco',geom = 'point', pointsize = 1)
+
+mixmodel$BIC
+mixmodel$modelName # optimal selected model
+mixmodel$G# optimal number of cluster
+head(mixmodel$z)# probality for an observation to be in a given cluster
+table(mixmodel$classification)#Compare amount of the data within each cluster:
+
+round(table(mixmodel$classification)/nrow(Final_DF),3)#"Proporción de observaciones en cada cluster"
+round(mixmodel$parameters$pro,3)#"Las famosas pi de las diaps"
+
+mod_plot = mclustBIC(Final_DF)
+plot(mod_plot, legend = FALSE)
+silhouette(mixmodel)
