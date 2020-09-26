@@ -1,19 +1,13 @@
----
-title: "TP Final - Aprendizaje No Supervisado"
-author: "Peter Silva"
-date: "September 25, 2020"
-output: html_document
----
-# Se estudiara el dataset de Spotify
+# Spotify Dataset
 
-#### Cargamos librerias iniciales
+# upload data
 ```{r}
 library(readr)
 library(cluster)
 library(factoextra)
 ```
 
-#### Cargamos datos y realizamo analisis exploratorio
+# Exploratory analysis
 ```{r}
 songs_features = read_csv("songs_features.csv")
 names(songs_features)
