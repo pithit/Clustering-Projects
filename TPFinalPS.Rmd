@@ -130,8 +130,8 @@ head(cancionero2, 10)
 ```
 
 
-## Usando DBSCAN  
-#Nor, we play with a density model
+## DBSCAN Approach
+#Now, we play with a density model
 #upload libraries
 ```{r}
 library(fpc)
